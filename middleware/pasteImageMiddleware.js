@@ -1,47 +1,76 @@
-const AWS = require('aws-sdk');
-const s3 = new AWS.S3();
+const envConfig = require('../config/envConfig');
+const { s3, bucketName } = require('../utils/upload');
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
+
+const MAX_IMAGES = 5;
+const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MIME_WHITELIST = ['image/jpeg', 'image/png', 'image/webp'];
+
+function makeS3Location(key) {
+  const region = envConfig.S3_BUCKET_REGION;
+  return `https://${bucketName}.s3.${region}.amazonaws.com/${encodeURIComponent(key)}`;
+}
 
 const pasteImageMiddleware = async (req, res, next) => {
-    try {
-        const pastedImages = req.body.pasted_images || req.body.pastedImages;
-        if (!pastedImages) return next();
+  try {
+    const pasted = req.body.pasted_images || req.body.pastedImages;
+    if (!pasted) return next();
 
-        const images = Array.isArray(pastedImages) ? pastedImages : JSON.parse(pastedImages);
-        req.files = req.files || [];
+    let images = Array.isArray(pasted) ? pasted : JSON.parse(pasted);
+    if (!Array.isArray(images)) images = [images];
 
-        for (const dataUrl of images) {
-            const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
-            if (!matches) continue;
+    req.files = req.files || [];
 
-            const mimetype = matches[1];
-            const base64Data = matches[2];
-            const buffer = Buffer.from(base64Data, 'base64');
-
-            const key = `uploads/${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            const params = {
-                Bucket: 'your-s3-bucket-name', // Replace with your bucket name
-                Key: key,
-                Body: buffer,
-                ContentType: mimetype,
-            };
-
-            const { Location } = await s3.upload(params).promise();
-
-            req.files.push({
-                location: Location,
-                key,
-                bucket: params.Bucket,
-                originalname: `pasted-image-${Date.now()}.${mimetype.split('/')[1]}`,
-                mimetype,
-                size: buffer.length,
-                fieldname: 'pasted_images',
-            });
-        }
-
-        next();
-    } catch (error) {
-        next(error);
+    if (req.files.length + images.length > MAX_IMAGES) {
+      return res.status(400).send({ error: `Too many images. Max ${MAX_IMAGES} allowed.` });
     }
+
+    for (const dataUrl of images) {
+      if (typeof dataUrl !== 'string') continue;
+      const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) continue;
+
+      const mimetype = matches[1];
+      const base64Data = matches[2];
+
+      if (!MIME_WHITELIST.includes(mimetype)) {
+        return res.status(400).send({ error: 'Invalid image type' });
+      }
+
+      const buffer = Buffer.from(base64Data, 'base64');
+      if (buffer.length > MAX_SIZE_BYTES) {
+        return res.status(400).send({ error: `Image too large. Max ${MAX_SIZE_BYTES} bytes.` });
+      }
+
+      const key = `${req.params.speciesId || 'uploads'}/${req.params.individualId || req.params.nextId || Date.now()}-${Date.now()}-${Math.random().toString(36).substr(2,9)}.${mimetype.split('/')[1]}`;
+
+      const params = {
+        Bucket: bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: mimetype,
+      };
+
+      const command = new PutObjectCommand(params);
+      await s3.send(command);
+
+      const location = makeS3Location(key);
+
+      req.files.push({
+        location,
+        key,
+        bucket: bucketName,
+        originalname: `pasted-image-${Date.now()}.${mimetype.split('/')[1]}`,
+        mimetype,
+        size: buffer.length,
+        fieldname: 'pasted_images',
+      });
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
 };
 
 module.exports = pasteImageMiddleware;
