@@ -1,20 +1,14 @@
-# BotaniTree-backend
-The backend for BotaniTree, the visualization tool that allows users to keep track of, and visualize the complex familial relationships of a specific plant species individuals using pedigrees.
+# BotaniTree-backend ― Plant Family Tree App
 
-The frontend code for the demo version of this application is available [here](https://github.com/jackhannon/BotaniTree-demo).
+A modern PyQt5 application for visual family tree management in plant breeding.
 
-## Tech Stack
-Built with:
- - Postgres
- - Express
- - NodeJS
+## Features
 
-System Info:
- - Node version - 18.12.1
- - Postgres version - 16.1
+🌱 Visual Family Tree Editor
+📸 Image Support (paste & upload)
+💾 Automatic saving to local SQLite database
+📊 Rich member details (name, sex, year grown, description)
+🎨 Material design / modern UI
+📈 View & load previous trees automatically
 
-## Copyright Notice
-
-© 2024, Jack Hannon. All rights reserved.
-
-This project and its contents are proprietary information. No license is granted to copy, modify, distribute, or use the code and content for any purpose without express written permission from the copyright holder.
+<setup instructions and architecture summary as previously described>
